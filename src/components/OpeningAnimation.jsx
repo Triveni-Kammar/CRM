@@ -10,7 +10,7 @@ const BOOT_LOG = [
 ]
 
 export default function OpeningAnimation({ onDone }) {
-  const [phase, setPhase] = useState(0)
+  const [phase, setPhase] = useState(-1) // -1 = waiting for user interaction
   const [logIndex, setLogIndex] = useState(0)
 
   const debris = useMemo(
@@ -46,9 +46,14 @@ export default function OpeningAnimation({ onDone }) {
 
   /* SOUND ENGINE */
   useEffect(() => {
+    if (phase === -1) return // Don't start audio until user clicks
+
     let ctx
     try { ctx = new (window.AudioContext || window.webkitAudioContext)() }
     catch (_) { return }
+
+    // Resume context if it's suspended (browser autoplay policy)
+    if (ctx.state === 'suspended') ctx.resume()
 
     const master = ctx.createGain()
     master.gain.setValueAtTime(0.75, ctx.currentTime)
@@ -173,9 +178,11 @@ export default function OpeningAnimation({ onDone }) {
     zap(now + 3.55)
 
     return () => { try { ctx.close() } catch (_) {} }
-  }, [])
+  }, [phase]) // Rerun when phase changes from -1 to 0
 
   useEffect(() => {
+    if (phase === -1) return
+
     const t = [
       setTimeout(() => setPhase(1), 450),
       setTimeout(() => setPhase(2), 1950),
@@ -187,12 +194,13 @@ export default function OpeningAnimation({ onDone }) {
       setTimeout(() => onDone(), 5150),
     ]
     return () => t.forEach(clearTimeout)
-  }, [onDone])
+  }, [phase, onDone])
 
   useEffect(() => {
+    if (phase === -1) return
     const s = setInterval(() => setLogIndex((i) => Math.min(i + 1, BOOT_LOG.length - 1)), 950)
     return () => clearInterval(s)
-  }, [])
+  }, [phase])
 
   const shake = phase === 2
 
@@ -201,6 +209,22 @@ export default function OpeningAnimation({ onDone }) {
       {phase < 7 && (
         <motion.div exit={{ opacity: 0, scale: 1.06 }} transition={{ duration: 0.55, ease: 'easeInOut' }}
           className="fixed inset-0 z-50 overflow-hidden bg-[#010206] flex items-center justify-center">
+          
+          {phase === -1 && (
+            <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#010206]/80 backdrop-blur-sm">
+              <div className="mb-8 flex items-center gap-3">
+                <TrishulSVG small active={false} />
+              </div>
+              <button
+                onClick={() => setPhase(0)}
+                className="px-8 py-3.5 rounded-xl border border-[rgba(242,169,59,0.4)] text-[var(--gold)] font-mono tracking-widest text-sm hover:bg-[rgba(242,169,59,0.15)] hover:scale-105 active:scale-95 transition-all"
+                style={{ boxShadow: '0 0 20px rgba(242,169,59,0.1)' }}
+              >
+                INITIALIZE SYSTEM
+              </button>
+            </div>
+          )}
+
           <motion.div className="absolute inset-0 flex items-center justify-center"
             animate={shake ? { x: [0,-14,12,-9,6,-4,0], y: [0,8,-7,5,-3,1,0] } : { x:0, y:0 }}
             transition={{ duration: 0.55 }}>

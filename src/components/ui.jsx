@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useRef } from 'react'
+import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion'
 import { X } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +7,38 @@ import { can } from '../utils/permissions'
 
 export function Card({ children, className = '' }) {
   return <div className={`glass glass-hover rounded-2xl p-5 ${className}`}>{children}</div>
+}
+
+function Counter({ value }) {
+  const ref = useRef(null)
+  const motionValue = useMotionValue(0)
+  const springValue = useSpring(motionValue, { damping: 30, stiffness: 100 })
+  const isInView = useInView(ref, { once: true, margin: "-10px" })
+
+  useEffect(() => {
+    if (isInView) {
+      if (typeof value === 'number') {
+        motionValue.set(value)
+      } else if (typeof value === 'string' && value.startsWith('₹')) {
+        const num = parseInt(value.replace(/[^0-9]/g, ''), 10)
+        motionValue.set(num)
+      }
+    }
+  }, [motionValue, isInView, value])
+
+  useEffect(() => {
+    return springValue.on("change", (latest) => {
+      if (ref.current) {
+        if (typeof value === 'string' && value.startsWith('₹')) {
+          ref.current.textContent = `₹${Math.floor(latest).toLocaleString('en-IN')}`
+        } else {
+          ref.current.textContent = Math.floor(latest).toLocaleString()
+        }
+      }
+    })
+  }, [springValue, value])
+
+  return <span ref={ref}>{typeof value === 'string' && !value.startsWith('₹') ? value : '0'}</span>
 }
 
 export function StatCard({ label, value, icon: Icon, accent = 'var(--gold)', delay = 0 }) {
@@ -19,7 +51,9 @@ export function StatCard({ label, value, icon: Icon, accent = 'var(--gold)', del
       <Card className="flex items-center justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-mono">{label}</div>
-          <div className="font-display text-2xl font-bold mt-1.5">{value}</div>
+          <div className="font-display text-2xl font-bold mt-1.5">
+            <Counter value={value} />
+          </div>
         </div>
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
